@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+
+{% block title %}Home - Django Auth App{% endblock %}
+
+{% block content %}
+<h2>Welcome, {{ user.username }}! 👋</h2>
+
+<div class="user-info">
+    <p>You are successfully logged in to the Django Authentication Sample App.</p>
+    
+    <div class="profile-section">
+        <h3>Your Account Details:</h3>
+        <p><strong>Username:</strong> {{ user.username }}</p>
+        <p><strong>Email:</strong> {{ user.email }}</p>
+        <p><strong>First Name:</strong> {{ user.first_name|default:"Not set" }}</p>
+        <p><strong>Last Name:</strong> {{ user.last_name|default:"Not set" }}</p>
+        <p><strong>Member Since:</strong> {{ user.date_joined|date:"F d, Y" }}</p>
+    </div>
+    
+    <div class="profile-section">
+        <h3>Quick Actions:</h3>
+        <p><a href="{% url 'profile' %}" style="color: #667eea; text-decoration: none; font-weight: bold;">View Your Profile →</a></p>
+        <p><a href="{% url 'admin:logout' %}" style="color: #667eea; text-decoration: none; font-weight: bold;">Go to Admin Panel →</a></p>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+
+{% block title %}Profile - Django Auth App{% endblock %}
+
+{% block content %}
+<h2>Your Profile</h2>
+
+<div class="user-info">
+    <div class="profile-section">
+        <h3>Account Information</h3>
+        <p><strong>User ID:</strong> {{ user.id }}</p>
+        <p><strong>Username:</strong> {{ user.username }}</p>
+        <p><strong>Email:</strong> {{ user.email }}</p>
+        <p><strong>First Name:</strong> {{ user.first_name|default:"Not set" }}</p>
+        <p><strong>Last Name:</strong> {{ user.last_name|default:"Not set" }}</p>
+    </div>
+    
+    <div class="profile-section">
+        <h3>Account Status</h3>
+        <p><strong>Account Active:</strong> {% if user.is_active %}✓ Yes{% else %}✗ No{% endif %}</p>
+        <p><strong>Staff Member:</strong> {% if user.is_staff %}✓ Yes{% else %}✗ No{% endif %}</p>
+        <p><strong>Superuser:</strong> {% if user.is_superuser %}✓ Yes{% else %}✗ No{% endif %}</p>
+        <p><strong>Member Since:</strong> {{ user.date_joined|date:"F d, Y \a\t g:i A" }}</p>
+        <p><strong>Last Login:</strong> {{ user.last_login|default:"Never"|date:"F d, Y \a\t g:i A" }}</p>
+    </div>
+    
+    <div class="profile-section">
+        <h3>Groups & Permissions</h3>
+        <p><strong>Groups:</strong> 
+            {% if user.groups.all %}
+                {{ user.groups.all|join:", " }}
+            {% else %}
+                No groups assigned
+            {% endif %}
+        </p>
+    </div>
+</div>
+{% endblock %}
