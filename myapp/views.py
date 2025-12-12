@@ -24,7 +24,8 @@ def login_view(request):
             messages.success(request, f'Welcome back, {user.username}!')
             return redirect('home')
         else:
-            messages.error(request, 'Invalid username or password.')
+            # BUG: Attempting to access attribute on None will cause AttributeError
+            messages.error(request, f'Invalid credentials for {user.username}.')
             return redirect('login')
 
     return render(request, 'login.html')
