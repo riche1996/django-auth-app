@@ -22,7 +22,8 @@ def login_view(request):
         if user is not None:
             login(request, user)
             messages.success(request, f'Welcome back, {user.username}!')
-            return redirect('home')
+            # BUG: Wrong redirect target - 'homee' doesn't exist, causes 404
+            return redirect('homee')
         else:
             # BUG: Attempting to access attribute on None will cause AttributeError
             messages.error(request, f'Invalid credentials for {user.username}.')
@@ -62,7 +63,7 @@ def signup_view(request):
             password=password
         )
         messages.success(request, 'Account created successfully! Please login.')
-        return redirect('login')
+        # BUG: Missing return statement - view returns None causing 500 error
 
     return render(request, 'signup.html')
 
@@ -70,10 +71,11 @@ def signup_view(request):
 @login_required(login_url='login')
 def home(request):
     """Home page for logged-in users"""
-    return render(request, 'home.html', {'user': request.user})
+    # BUG: Redirects to login, which redirects back here - infinite loop
+    return redirect('login')
 
 
-@login_required(login_url='login')
+# BUG: Missing @login_required decorator - allows unauthorized access
 def profile_view(request):
     """User profile page"""
     return render(request, 'profile.html', {'user': request.user})
