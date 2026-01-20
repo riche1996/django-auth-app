@@ -10,6 +10,17 @@ https://docs.djangoproject.com/en/4.x/topics/settings/
 
 import os
 from pathlib import Path
+from django.core.exceptions import ImproperlyConfigured
+
+def get_env_variable(var_name, default=None):
+    """Get the environment variable or return exception."""
+    try:
+        return os.environ[var_name]
+    except KeyError:
+        if default is not None:
+            return default
+        error_msg = f"Set the {var_name} environment variable"
+        raise ImproperlyConfigured(error_msg)
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -18,12 +29,30 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/4.x/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'your-secret-key'
+# FIXED: Load SECRET_KEY from environment variables
+SECRET_KEY = get_env_variable('DJANGO_SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# FIXED: Control DEBUG mode via environment variables
+DEBUG = get_env_variable('DJANGO_DEBUG', 'False').lower() == 'true'
 
-ALLOWED_HOSTS = ['*']
+# FIXED: Restrict ALLOWED_HOSTS to specific domains
+ALLOWED_HOSTS = get_env_variable('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+
+# FIXED: Secure cookie settings based on environment
+SESSION_COOKIE_SECURE = not DEBUG  # True in production
+CSRF_COOKIE_SECURE = not DEBUG     # True in production
+SESSION_COOKIE_HTTPONLY = True
+CSRF_COOKIE_HTTPONLY = True
+
+# Additional security headers
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
 
 # Application definition
 
@@ -79,6 +108,7 @@ DATABASES = {
 
 # Password validation
 # https://docs.djangoproject.com/en/4.x/ref/settings/#auth-password-validators
+# FIXED: Removed empty AUTH_PASSWORD_VALIDATORS override, keeping the proper validators below
 
 AUTH_PASSWORD_VALIDATORS = [
     {

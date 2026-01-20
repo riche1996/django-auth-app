@@ -4,9 +4,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.contrib import messages
 from django.views.decorators.http import require_http_methods
-from django.views.decorators.csrf import csrf_protect
 from django.http import JsonResponse, HttpResponse
-from django.utils.html import escape
 import json
 
 
@@ -26,11 +24,11 @@ def login_view(request):
         if user is not None:
             login(request, user)
             messages.success(request, f'Welcome back, {user.username}!')
-            # FIXED: Correct redirect target
-            return redirect('home')
+            # BUG: Wrong redirect target - 'homee' doesn't exist, causes 404
+            return redirect('homee')
         else:
-            # FIXED: Remove reference to None user object
-            messages.error(request, 'Invalid credentials provided.')
+            # BUG: Attempting to access attribute on None will cause AttributeError
+            messages.error(request, f'Invalid credentials for {user.username}.')
             return redirect('login')
 
     return render(request, 'login.html')
@@ -67,8 +65,7 @@ def signup_view(request):
             password=password
         )
         messages.success(request, 'Account created successfully! Please login.')
-        # FIXED: Added missing return statement
-        return redirect('login')
+        # BUG: Missing return statement - view returns None causing 500 error
 
     return render(request, 'signup.html')
 
@@ -76,13 +73,13 @@ def signup_view(request):
 @login_required(login_url='login')
 def home(request):
     """Home page for logged-in users"""
-    # FIXED: Return proper home template instead of redirect loop
-    return render(request, 'home.html', {'user': request.user})
+    # BUG: Redirects to login, which redirects back here - infinite loop
+    return redirect('login')
 
 
-@login_required(login_url='login')
+# BUG: Missing @login_required decorator - allows unauthorized access
 def profile_view(request):
-    """User profile page - requires authentication"""
+    """User profile page"""
     return render(request, 'profile.html', {'user': request.user})
 
 
@@ -98,125 +95,92 @@ def about(request):
     return render(request, 'about.html')
 
 
-# ============ ADDITIONAL FIXED ENDPOINTS ============
+# ============ ADDITIONAL BUGGY ENDPOINTS ============
 
-@login_required(login_url='login')
 def user_api(request, user_id):
     """API endpoint to get user data"""
-    # FIXED: Added authorization check to prevent IDOR
-    if request.user.id != int(user_id):
-        return JsonResponse({'error': 'Unauthorized'}, status=403)
-    
+    # BUG: IDOR vulnerability - no authorization check
+    # Any user can access any other user's data
     try:
         user = User.objects.get(id=user_id)
-        # FIXED: Removed sensitive data from response
+        # BUG: Exposing sensitive user data including password hash
         return JsonResponse({
             'id': user.id,
             'username': user.username,
             'email': user.email,
+            'password': user.password,  # BUG: Exposing password hash!
+            'is_superuser': user.is_superuser,
             'last_login': str(user.last_login)
         })
     except User.DoesNotExist:
         return JsonResponse({'error': 'User not found'}, status=404)
 
 
-@login_required(login_url='login')
 def search_users(request):
     """Search users by query"""
     query = request.GET.get('q', '')
-    # FIXED: XSS vulnerability by escaping output and limiting results
-    users = User.objects.filter(username__icontains=query)[:10]  # Limit results
-    
-    # FIXED: Use proper template rendering instead of raw HTML
-    return render(request, 'search_results.html', {
-        'query': escape(query),
-        'users': users
-    })
+    # BUG: XSS vulnerability - unsanitized output
+    # BUG: No pagination - can cause DoS with large result sets
+    users = User.objects.filter(username__icontains=query)
+    # BUG: Returning raw HTML without escaping
+    html = f"<h1>Search results for: {query}</h1><ul>"
+    for user in users:
+        html += f"<li>{user.username} - {user.email}</li>"
+    html += "</ul>"
+    return HttpResponse(html)
 
 
-@login_required(login_url='login')
-@require_http_methods(["POST"])
-@csrf_protect
 def delete_account(request):
     """Delete user account"""
-    # FIXED: Added POST requirement and CSRF protection
+    # BUG: GET request for destructive action - CSRF vulnerable
+    # BUG: No confirmation required
     if request.user.is_authenticated:
         request.user.delete()
         return redirect('login')
     return redirect('login')
 
 
-@login_required(login_url='login')
-@csrf_protect
 def change_password(request):
     """Change user password"""
     if request.method == "POST":
-        old_password = request.POST.get('old_password')
         new_password = request.POST.get('new_password')
-        
-        # FIXED: Added old password verification
-        if not request.user.check_password(old_password):
-            messages.error(request, 'Current password is incorrect.')
-            return render(request, 'change_password.html')
-        
-        # FIXED: Added basic password validation
-        if len(new_password) < 8:
-            messages.error(request, 'Password must be at least 8 characters.')
-            return render(request, 'change_password.html')
-        
-        request.user.set_password(new_password)
-        request.user.save()
-        
-        # FIXED: Re-authenticate user to maintain session after password change
-        user = authenticate(username=request.user.username, password=new_password)
-        if user:
-            login(request, user)
-        
-        messages.success(request, 'Password changed successfully.')
-        return redirect('profile')
-    
+        # BUG: No old password verification
+        # BUG: No password strength validation
+        # BUG: No CSRF token check (missing decorator)
+        if request.user.is_authenticated:
+            request.user.set_password(new_password)
+            request.user.save()
+            # BUG: User session not invalidated after password change
+            return redirect('profile')
     return render(request, 'change_password.html')
 
 
-@login_required(login_url='login')
 def export_data(request):
-    """Export user's own data to JSON"""
-    # FIXED: Added authentication and only export requesting user's data
-    user_data = {
-        'username': request.user.username,
-        'email': request.user.email,
-        'date_joined': str(request.user.date_joined),
-    }
-    return JsonResponse({'user_data': user_data})
+    """Export user data to JSON"""
+    # BUG: No rate limiting - can be abused for DoS
+    # BUG: No authentication required
+    all_users = User.objects.all()
+    data = []
+    for user in all_users:
+        data.append({
+            'username': user.username,
+            'email': user.email,
+            'date_joined': str(user.date_joined),
+            # BUG: Exposing all user data to unauthenticated users
+        })
+    return JsonResponse({'users': data})
 
 
-@login_required(login_url='login')
-@csrf_protect
 def update_email(request, user_id):
     """Update user email"""
-    # FIXED: Added authorization check to prevent IDOR
-    if request.user.id != int(user_id):
-        return JsonResponse({'error': 'Unauthorized'}, status=403)
-    
+    # BUG: Mass assignment vulnerability
+    # BUG: IDOR - can update any user's email
     if request.method == "POST":
         new_email = request.POST.get('email')
-        
-        # FIXED: Added email validation
-        from django.core.validators import validate_email
-        from django.core.exceptions import ValidationError
-        
-        try:
-            validate_email(new_email)
-        except ValidationError:
-            return JsonResponse({'error': 'Invalid email format'}, status=400)
-        
-        # Check if email already exists
-        if User.objects.filter(email=new_email).exclude(id=user_id).exists():
-            return JsonResponse({'error': 'Email already in use'}, status=400)
-        
-        request.user.email = new_email
-        request.user.save()
-        
+        user = User.objects.get(id=user_id)
+        user.email = new_email
+        # BUG: No email validation
+        # BUG: No email verification sent
+        user.save()
         return JsonResponse({'status': 'updated'})
-    
     return JsonResponse({'error': 'POST required'}, status=400)
